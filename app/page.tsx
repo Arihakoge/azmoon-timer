@@ -1,65 +1,145 @@
-import Image from "next/image";
+"use client";
+import { useState, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+// اتصال به سوپربیس
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default function Home() {
+  const [exams, setExams] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(new Date().getTime());
+
+  // دریافت تمام آزمون‌ها از دیتابیس
+  useEffect(() => {
+    const fetchExams = async () => {
+      const { data, error } = await supabase
+        .from("exams")
+        .select("*")
+        .order("target_date", { ascending: true }); // مرتب‌سازی از نزدیک‌ترین آزمون
+
+      if (error) {
+        console.error("خطا در دریافت اطلاعات:", error);
+      } else {
+        setExams(data || []);
+      }
+      setLoading(false);
+    };
+
+    fetchExams();
+  }, []);
+
+  // یک تایمر مرکزی که هر یک ثانیه به‌روز می‌شود
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(new Date().getTime());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // فرمول محاسبه زمان باقی‌مانده برای هر کارت
+  const calculateTimeLeft = (targetDate: string) => {
+    const distance = new Date(targetDate).getTime() - now;
+    if (distance < 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    return {
+      days: Math.floor(distance / (1000 * 60 * 60 * 24)),
+      hours: Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+      minutes: Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)),
+      seconds: Math.floor((distance % (1000 * 60)) / 1000),
+    };
+  };
+
+  if (loading)
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-950 text-white font-bold text-xl">
+        در حال دریافت جدیدترین آزمون‌ها...
+      </div>
+    );
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main
+      className="min-h-screen bg-gray-950 text-white p-6 md:p-12 font-sans"
+      dir="rtl"
+    >
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl md:text-5xl font-extrabold mb-12 text-center text-gray-100">
+          مرجع زمان‌بندی آزمون‌های کشوری
+        </h1>
+
+        {exams.length === 0 ? (
+          <p className="text-center text-gray-400 text-lg">
+            هیچ آزمونی در سیستم ثبت نشده است.
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {exams.map((exam) => {
+              const timeLeft = calculateTimeLeft(exam.target_date);
+              return (
+                <div
+                  key={exam.id}
+                  className="bg-gray-900 p-6 rounded-3xl shadow-xl border border-gray-800 flex flex-col items-center hover:border-gray-600 transition-colors"
+                >
+                  <span className="text-xs font-semibold text-blue-400 bg-blue-900/30 px-3 py-1.5 rounded-full mb-4">
+                    {exam.category}
+                  </span>
+
+                  <h2 className="text-2xl font-bold mb-6 text-center text-gray-100 h-14 flex items-center justify-center leading-tight">
+                    {exam.title}
+                  </h2>
+
+                  <div className="flex gap-2 text-center" dir="ltr">
+                    <div className="bg-gray-800 p-3 rounded-xl min-w-[65px] border border-gray-700 shadow-inner">
+                      <span className="text-2xl font-bold text-white block">
+                        {timeLeft.days}
+                      </span>
+                      <p className="mt-1 text-gray-400 text-[11px] font-medium tracking-wider">
+                        روز
+                      </p>
+                    </div>
+                    <div className="bg-gray-800 p-3 rounded-xl min-w-[65px] border border-gray-700 shadow-inner">
+                      <span className="text-2xl font-bold text-white block">
+                        {timeLeft.hours}
+                      </span>
+                      <p className="mt-1 text-gray-400 text-[11px] font-medium tracking-wider">
+                        ساعت
+                      </p>
+                    </div>
+                    <div className="bg-gray-800 p-3 rounded-xl min-w-[65px] border border-gray-700 shadow-inner">
+                      <span className="text-2xl font-bold text-white block">
+                        {timeLeft.minutes}
+                      </span>
+                      <p className="mt-1 text-gray-400 text-[11px] font-medium tracking-wider">
+                        دقیقه
+                      </p>
+                    </div>
+                    <div className="bg-gray-800 p-3 rounded-xl min-w-[65px] border border-blue-900/40 shadow-[0_0_10px_rgba(59,130,246,0.1)]">
+                      <span className="text-2xl font-bold text-blue-400 block">
+                        {timeLeft.seconds}
+                      </span>
+                      <p className="mt-1 text-blue-400/80 text-[11px] font-medium tracking-wider">
+                        ثانیه
+                      </p>
+                    </div>
+                  </div>
+
+                  {exam.news_link && (
+                    <a
+                      href={exam.news_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-6 text-sm text-blue-400 hover:text-blue-300 transition-colors underline underline-offset-4 decoration-blue-400/30"
+                    >
+                      پیگیری اخبار این آزمون
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
