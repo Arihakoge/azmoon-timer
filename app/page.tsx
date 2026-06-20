@@ -1,142 +1,91 @@
 "use client";
 import { useState, useEffect } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { Handjet } from "next/font/google";
+import { supabase } from "@/utils/supabase"; // وارد کردن ابزار دیتابیس
+import ExamCard from "@/components/ExamCard"; // وارد کردن کامپوننت کارت
 
-// اتصال به سوپربیس
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const pixelFontFa = Handjet({ subsets: ["arabic"] });
 
 export default function Home() {
   const [exams, setExams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(new Date().getTime());
+  const [activeCategory, setActiveCategory] = useState<string>("همه");
 
-  // دریافت تمام آزمون‌ها از دیتابیس
   useEffect(() => {
     const fetchExams = async () => {
       const { data, error } = await supabase
         .from("exams")
         .select("*")
-        .order("target_date", { ascending: true }); // مرتب‌سازی از نزدیک‌ترین آزمون
-
-      if (error) {
-        console.error("خطا در دریافت اطلاعات:", error);
-      } else {
-        setExams(data || []);
-      }
+        .order("target_date", { ascending: true });
+      if (!error) setExams(data || []);
       setLoading(false);
     };
-
     fetchExams();
   }, []);
 
-  // یک تایمر مرکزی که هر یک ثانیه به‌روز می‌شود
   useEffect(() => {
-    const interval = setInterval(() => {
-      setNow(new Date().getTime());
-    }, 1000);
+    const interval = setInterval(() => setNow(new Date().getTime()), 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // فرمول محاسبه زمان باقی‌مانده برای هر کارت
-  const calculateTimeLeft = (targetDate: string) => {
-    const distance = new Date(targetDate).getTime() - now;
-    if (distance < 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
-    return {
-      days: Math.floor(distance / (1000 * 60 * 60 * 24)),
-      hours: Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
-      minutes: Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)),
-      seconds: Math.floor((distance % (1000 * 60)) / 1000),
-    };
-  };
-
   if (loading)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-950 text-white font-bold text-xl">
-        در حال دریافت جدیدترین آزمون‌ها...
+      <div className="min-h-screen flex items-center justify-center bg-black text-white font-bold text-xl tracking-widest">
+        در حال بارگذاری اطلاعات...
       </div>
     );
 
+  const categories = [
+    "همه",
+    ...Array.from(new Set(exams.map((exam) => exam.category))),
+  ];
+  const filteredExams =
+    activeCategory === "همه"
+      ? exams
+      : exams.filter((exam) => exam.category === activeCategory);
+
   return (
     <main
-      className="min-h-screen bg-gray-950 text-white p-6 md:p-12 font-sans"
+      className={`min-h-screen bg-[#0a0a0a] bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] text-white p-6 md:p-12 ${pixelFontFa.className}`}
       dir="rtl"
     >
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl md:text-5xl font-extrabold mb-12 text-center text-gray-100">
-          مرجع زمان‌بندی آزمون‌های کشوری
-        </h1>
+        <div className="text-center mb-12">
+          <h1 className="text-4xl md:text-6xl font-bold text-white inline-block border-b-4 border-blue-500 pb-4 shadow-[0_4px_0_0_rgba(59,130,246,1)] leading-relaxed">
+            مرجع زمان‌بندی آزمون‌های کشوری
+          </h1>
+          <p className="mt-6 text-gray-400 text-xl font-medium tracking-wide">
+            لحظه‌شمار دقیق رقابت‌های تحصیلی و حرفه‌ای
+          </p>
+        </div>
 
-        {exams.length === 0 ? (
-          <p className="text-center text-gray-400 text-lg">
-            هیچ آزمونی در سیستم ثبت نشده است.
+        <div className="flex flex-wrap justify-center gap-4 mb-12">
+          {categories.map((category) => (
+            <button
+              key={category}
+              onClick={() => setActiveCategory(category)}
+              className={`px-6 py-2 text-xl font-bold border-2 transition-all ${
+                activeCategory === category
+                  ? "bg-blue-600 border-white text-white shadow-[4px_4px_0_0_rgba(255,255,255,1)] translate-y-[2px] translate-x-[2px]"
+                  : "bg-gray-900 border-gray-600 text-gray-400 hover:text-white hover:border-white shadow-[4px_4px_0_0_rgba(75,85,99,1)]"
+              }`}
+            >
+              {category}
+            </button>
+          ))}
+        </div>
+
+        {filteredExams.length === 0 ? (
+          <p className="text-center text-gray-500 text-2xl font-bold mt-10">
+            آزمونی در این دسته‌بندی یافت نشد.
           </p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {exams.map((exam) => {
-              const timeLeft = calculateTimeLeft(exam.target_date);
-              return (
-                <div
-                  key={exam.id}
-                  className="bg-gray-900 p-6 rounded-3xl shadow-xl border border-gray-800 flex flex-col items-center hover:border-gray-600 transition-colors"
-                >
-                  <span className="text-xs font-semibold text-blue-400 bg-blue-900/30 px-3 py-1.5 rounded-full mb-4">
-                    {exam.category}
-                  </span>
-
-                  <h2 className="text-2xl font-bold mb-6 text-center text-gray-100 h-14 flex items-center justify-center leading-tight">
-                    {exam.title}
-                  </h2>
-
-                  <div className="flex gap-2 text-center" dir="ltr">
-                    <div className="bg-gray-800 p-3 rounded-xl min-w-[65px] border border-gray-700 shadow-inner">
-                      <span className="text-2xl font-bold text-white block">
-                        {timeLeft.days}
-                      </span>
-                      <p className="mt-1 text-gray-400 text-[11px] font-medium tracking-wider">
-                        روز
-                      </p>
-                    </div>
-                    <div className="bg-gray-800 p-3 rounded-xl min-w-[65px] border border-gray-700 shadow-inner">
-                      <span className="text-2xl font-bold text-white block">
-                        {timeLeft.hours}
-                      </span>
-                      <p className="mt-1 text-gray-400 text-[11px] font-medium tracking-wider">
-                        ساعت
-                      </p>
-                    </div>
-                    <div className="bg-gray-800 p-3 rounded-xl min-w-[65px] border border-gray-700 shadow-inner">
-                      <span className="text-2xl font-bold text-white block">
-                        {timeLeft.minutes}
-                      </span>
-                      <p className="mt-1 text-gray-400 text-[11px] font-medium tracking-wider">
-                        دقیقه
-                      </p>
-                    </div>
-                    <div className="bg-gray-800 p-3 rounded-xl min-w-[65px] border border-blue-900/40 shadow-[0_0_10px_rgba(59,130,246,0.1)]">
-                      <span className="text-2xl font-bold text-blue-400 block">
-                        {timeLeft.seconds}
-                      </span>
-                      <p className="mt-1 text-blue-400/80 text-[11px] font-medium tracking-wider">
-                        ثانیه
-                      </p>
-                    </div>
-                  </div>
-
-                  {exam.news_link && (
-                    <a
-                      href={exam.news_link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-6 text-sm text-blue-400 hover:text-blue-300 transition-colors underline underline-offset-4 decoration-blue-400/30"
-                    >
-                      پیگیری اخبار این آزمون
-                    </a>
-                  )}
-                </div>
-              );
-            })}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+            {/* استفاده از کامپوننت مستقل کارت آزمون */}
+            {filteredExams.map((exam) => (
+              <ExamCard key={exam.id} exam={exam} now={now} />
+            ))}
           </div>
         )}
       </div>
